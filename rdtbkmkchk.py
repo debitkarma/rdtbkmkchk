@@ -1,7 +1,9 @@
-import praw
-from praw.models import Comment, ListingGenerator, Reddit, Subreddit, Submission
 import os
+import praw
+
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from praw.models import Comment, ListingGenerator, Reddit, Subreddit, Submission
 from typing import Dict, List, Tuple, Union
 
 
@@ -53,6 +55,22 @@ def separate_submissions_comments(
             comments_list.append(item)
 
     return (submissions_list, comments_list)
+
+
+def pull_links_submissions(submission_entry: Submission) -> List[str]:
+    html_content = submission_entry.selftext_html
+    soup = BeautifulSoup(html_content, "html.parser")
+    links = soup.find_all("a")
+    urls = [link.get("href") for link in links]
+    return urls
+
+
+def pull_links_comments(comment_entry: Comment) -> List[str]:
+    html_content = comment_entry.body_html
+    soup = BeautifulSoup(html_content, "html.parser")
+    links = soup.find_all("a")
+    urls = [link.get("href") for link in links]
+    return urls
 
 
 if __name__ == "__main__":
