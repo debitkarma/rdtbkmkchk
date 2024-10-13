@@ -7,7 +7,7 @@ from praw.models import Comment, ListingGenerator, Subreddit, Submission
 from typing import Dict, List, Tuple, Union
 
 
-def load_env() -> Union[Dict[str, str], None]:
+def load_credentials() -> Union[Dict[str, str], None]:
     load_dotenv()
     creds = {
         "client_id": os.getenv("CLIENT_ID"),
@@ -38,7 +38,7 @@ def authenticated(creds: dict) -> bool:
 
 
 def test_loading_env():
-    creds = load_env()
+    creds = load_credentials()
     if not creds:
         print("Failed to load creds... Are any env vars blank/missing?")
     try:
@@ -90,6 +90,6 @@ def pull_links_comments(comment_entry: Comment) -> List[str]:
 
 if __name__ == "__main__":
     test_loading_env()
-    creds = load_env()
+    creds = load_credentials()
     rdt = get_reddit_instance(creds)
     print(authenticated(creds))
