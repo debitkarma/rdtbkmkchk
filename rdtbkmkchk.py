@@ -31,10 +31,10 @@ def authenticated(creds: dict) -> bool:
 def test_loading_env():
     load_dotenv()
     creds = load_env()
+    if not creds:
+        print(f"Failed to load creds... Are any env vars blank/missing?")
     try:
         print(creds["username"])
-    except TypeError as t:
-        print(f"Failed to load creds... Are any env vars blank/missing?")
     except Exception as e:
         print(f"Failed to load creds: {e} \n")
 
