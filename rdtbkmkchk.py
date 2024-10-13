@@ -3,11 +3,13 @@ import praw
 
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from praw.models import Comment, ListingGenerator, Reddit, Subreddit, Submission
+from praw import Reddit
+from praw.models import Comment, ListingGenerator, Subreddit, Submission
 from typing import Dict, List, Tuple, Union
 
 
 def load_env() -> Union[Dict[str, str], None]:
+    load_dotenv()
     creds = {
         "client_id": os.getenv("CLIENT_ID"),
         "client_secret": os.getenv("CLIENT_SECRET"),
@@ -29,7 +31,12 @@ def authenticated(creds: dict) -> bool:
 def test_loading_env():
     load_dotenv()
     creds = load_env()
-    print(creds["username"])
+    try:
+        print(creds["username"])
+    except TypeError as t:
+        print(f"Failed to load creds... Are any env vars blank/missing?")
+    except Exception as e:
+        print(f"Failed to load creds: {e} \n")
 
 
 def get_saved_items_of_subreddit(
