@@ -1,5 +1,4 @@
 import os
-import praw
 
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -19,19 +18,29 @@ def load_env() -> Union[Dict[str, str], None]:
     }
     for key in creds.keys():
         if not creds[key]:
-            return None
+            raise KeyError
     return creds
 
 
+def get_reddit_instance(creds: Dict[str, str]) -> Reddit:
+    rdt = Reddit(**creds)
+    return rdt
+
+
 def authenticated(creds: dict) -> bool:
-    rdt = praw.Reddit(*creds)
-    return creds["username"] == rdt.user.me()
+    logged_in_name = ""
+    try:
+        rdt = Reddit(**creds)
+        logged_in_name = rdt.user.me().name
+    except Exception as e:
+        print(f"Failed to authenticate: {e}")
+    return creds["username"] == logged_in_name
 
 
 def test_loading_env():
     creds = load_env()
     if not creds:
-        print(f"Failed to load creds... Are any env vars blank/missing?")
+        print("Failed to load creds... Are any env vars blank/missing?")
     try:
         print(creds["username"])
     except Exception as e:
@@ -81,3 +90,6 @@ def pull_links_comments(comment_entry: Comment) -> List[str]:
 
 if __name__ == "__main__":
     test_loading_env()
+    creds = load_env()
+    rdt = get_reddit_instance(creds)
+    print(authenticated(creds))
