@@ -157,11 +157,15 @@ if __name__ == "__main__":
         for sub in subreddits_list:
             saved_items.extend(get_saved_items_of_subreddit(rdt, LIMIT, sub))
 
-    saved_subs, saved_coms = separate_submissions_comments(items=saved_items)
+    saved_submissions, saved_comments = separate_submissions_comments(items=saved_items)
     urls = list()
 
-    urls.extend(pull_links_submissions(saved_subs))
-    urls.extend(pull_links_comments(saved_coms))
+    for submission in saved_submissions:
+        urls.extend(pull_links_submissions(submission))
+
+    for comment in saved_comments:
+        urls.extend(pull_links_comments(comment))
 
     filtered_urls = filter_urls(urls, blacklist, whitelist)
-    print(filtered_urls)
+    for url in filtered_urls:
+        print(url)
