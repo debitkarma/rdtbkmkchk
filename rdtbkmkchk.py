@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from loguru import logger
 from praw import Reddit
 from praw.models import Comment, ListingGenerator, Submission  # , Subreddit
+from sys import stderr
 from typing import Dict, List, Tuple, Union
 from urllib.parse import ParseResult, urlparse
 
@@ -20,6 +21,7 @@ def load_settings_from_env() -> Union[Dict[str, str], None]:
     }
     for key in creds.keys():
         if not creds[key]:
+            logger.error(f"Missing setting for {key}; FAILURE")
             raise KeyError
     creds["blacklist_file"] = os.getenv("BLACKLISTFILE")
     creds["whitelist_file"] = os.getenv("WHITELISTFILE")
@@ -44,18 +46,18 @@ def authenticated(creds: dict) -> bool:
         rdt = Reddit(**creds)
         logged_in_name = rdt.user.me().name
     except Exception as e:
-        print(f"Failed to authenticate: {e}")
+        logger.error(f"Failed to authenticate: {e}")
     return creds["username"] == logged_in_name
 
 
 def test_loading_env():
     creds = load_settings_from_env()
     if not creds:
-        print("Failed to load creds... Are any env vars blank/missing?")
+        logger.error("Failed to load creds... Are any env vars blank/missing?")
     try:
-        print(creds["username"])
+        logger.info(creds["username"])
     except Exception as e:
-        print(f"Failed to load creds: {e} \n")
+        logger.error(f"Failed to load creds: {e} \n")
 
 
 def get_saved_items_of_subreddit(
@@ -99,21 +101,36 @@ def pull_links_comments(comment_entry: Comment) -> List[str]:
     return urls
 
 
-def filter_urls(
+def put_urls_through_filters(
     urls: List[str], blacklist: List[str] = list(), whitelist: List[str] = list()
 ) -> List[str]:
     parsed_urls = [urlparse(url) for url in urls]
     # reddit urls to users or subs only have path, no netloc
     # '/u/username' or 'r/subreddit'
     filtered_urls: List[ParseResult] = [url for url in parsed_urls if url.netloc]
+    logger.debug(f"{filtered_urls = }")
+
     if blacklist:
-        filtered_urls: List[ParseResult] = [
-            url for url in filtered_urls if url.netloc in blacklist
-        ]
+        not_blacklisted = []
+        for url in filtered_urls:
+            if any([True if item in url.netloc else False for item in blacklist]):
+                logger.debug(f"EXCLUDING (Blacklisted) {url}")
+                continue
+            else:
+                not_blacklisted.append(url)
+        logger.debug(f"Found blacklist, filtered list down to: \n {not_blacklisted}")
+        filtered_urls = not_blacklisted
+
     if whitelist:
-        filtered_urls: List[ParseResult] = [
-            url for url in filtered_urls if url.netloc in whitelist
-        ]
+        whitelisted = []
+        for url in filtered_urls:
+            if any([True if item in url.netloc else False for item in whitelist]):
+                whitelisted.append(url)
+            else:
+                logger.debug(f"EXCLUDING (!Whitelisted) {url}")
+        logger.debug(f"Found whitelist, filtered list down to: \n {filtered_urls}")
+        filtered_urls = whitelisted
+
     return [parsed_url.geturl() for parsed_url in filtered_urls]
 
 
@@ -127,28 +144,39 @@ def load_list_from_file(list_file: str) -> List[str]:
                 else:
                     continue
     except Exception as e:
-        print(f"could not load {list_file}: {e} \n\n returning empty list...")
+        logger.warning(f"could not load {list_file}: {e} \n\n returning empty list...")
     return lst
 
 
 if __name__ == "__main__":
-    test_loading_env()
+    # test_loading_env()
+    logger.remove()
+    logger.add(stderr, level="DEBUG")
+
     creds = load_settings_from_env()
+    logger.debug(f"loaded creds for {creds["username"]}")
 
     LIMIT = creds.pop("LIMIT")
+    logger.info(f"limit of saved entries to pull is {LIMIT}")
 
     blacklist_file = creds.pop("blacklist_file")
     blacklist = load_list_from_file(blacklist_file)
+    logger.debug(f"blacklist: {blacklist}")
+
     whitelist_file = creds.pop("whitelist_file")
     whitelist = load_list_from_file(whitelist_file)
+    logger.debug(f"whitelist: {whitelist}")
 
     subreddits_file = creds.pop("subreddits_file")
     subreddits_list = load_list_from_file(subreddits_file)
+    logger.debug(f"subreddits_list: {subreddits_list}")
+
     only_one_subreddit = False
 
     if len(subreddits_list) == 1:
         only_one_subreddit = True
 
+    logger.info(f"{only_one_subreddit = }")
     rdt = get_reddit_instance(creds)
     saved_items: List[Union[Submission, Comment]] = list()
 
@@ -159,6 +187,8 @@ if __name__ == "__main__":
             saved_items.extend(get_saved_items_of_subreddit(rdt, LIMIT, sub))
 
     saved_submissions, saved_comments = separate_submissions_comments(items=saved_items)
+    logger.debug(f"{saved_submissions = } \n\n {saved_comments = }")
+
     urls = list()
 
     for submission in saved_submissions:
@@ -167,6 +197,9 @@ if __name__ == "__main__":
     for comment in saved_comments:
         urls.extend(pull_links_comments(comment))
 
-    filtered_urls = filter_urls(urls, blacklist, whitelist)
+    logger.debug(f"List of URLS: {urls}")
+
+    filtered_urls = put_urls_through_filters(urls, blacklist, whitelist)
+    logger.info("URLs found:\n")
     for url in filtered_urls:
-        print(url)
+        logger.info(f"{url}")
