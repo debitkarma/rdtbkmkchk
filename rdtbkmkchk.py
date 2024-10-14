@@ -71,6 +71,21 @@ def get_saved_items_of_subreddit(
     return items
 
 
+def filter_title_for_saved_items(
+    submissions_list: List[Submission], filter_terms: List[str]
+) -> List[Submission]:
+    filtered_list = []
+    for submission in submissions_list:
+        if any([True if term in submission.title else False for term in filter_terms]):
+            logger.debug(f"EXCLUDING (Title Filter) {submission.id}")
+            continue
+        else:
+            filtered_list.append(submission)
+    logger.debug(
+        f"Title filter reduced submissions down to {len(filtered_list)/len(submissions_list)}"
+    )
+
+
 def separate_submissions_comments(
     items: List[Union[Submission, Comment]],
 ) -> Tuple[List[Submission], List[Comment]]:
