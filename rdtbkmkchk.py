@@ -2,6 +2,7 @@ import os
 
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from loguru import logger
 from praw import Reddit
 from praw.models import Comment, ListingGenerator, Submission  # , Subreddit
 from typing import Dict, List, Tuple, Union
