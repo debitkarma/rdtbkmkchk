@@ -3,11 +3,12 @@ import os
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from praw import Reddit
-from praw.models import Comment, ListingGenerator, Subreddit, Submission
+from praw.models import Comment, ListingGenerator, Submission  # , Subreddit
 from typing import Dict, List, Tuple, Union
+from urllib.parse import ParseResult, urlparse
 
 
-def load_credentials() -> Union[Dict[str, str], None]:
+def load_settings_from_env() -> Union[Dict[str, str], None]:
     load_dotenv()
     creds = {
         "client_id": os.getenv("CLIENT_ID"),
@@ -19,6 +20,15 @@ def load_credentials() -> Union[Dict[str, str], None]:
     for key in creds.keys():
         if not creds[key]:
             raise KeyError
+    creds["blacklist_file"] = os.getenv("BLACKLISTFILE")
+    creds["whitelist_file"] = os.getenv("WHITELISTFILE")
+    creds["subreddits_file"] = os.getenv("SUBREDDITSFILE")
+    LIMIT = os.getenv("LIMIT")
+    try:
+        LIMIT = int(LIMIT)
+    except:  # noqa: E722
+        LIMIT = None
+    creds["LIMIT"] = LIMIT
     return creds
 
 
@@ -38,7 +48,7 @@ def authenticated(creds: dict) -> bool:
 
 
 def test_loading_env():
-    creds = load_credentials()
+    creds = load_settings_from_env()
     if not creds:
         print("Failed to load creds... Are any env vars blank/missing?")
     try:
@@ -50,7 +60,7 @@ def test_loading_env():
 def get_saved_items_of_subreddit(
     reddit_obj: Reddit, limit: Union[int, None], subreddit_name: str
 ) -> List[Union[Submission, Comment]]:
-    saved_items_gen: ListingGenerator = Reddit.saved(limit=limit)
+    saved_items_gen: ListingGenerator = reddit_obj.user.me().saved(limit=limit)
     items: List[Union[Submission, Comment]] = []
     for item in saved_items_gen:
         if item.subreddit.display_name == subreddit_name:
@@ -88,8 +98,70 @@ def pull_links_comments(comment_entry: Comment) -> List[str]:
     return urls
 
 
+def filter_urls(
+    urls: List[str], blacklist: List[str] = list(), whitelist: List[str] = list()
+) -> List[str]:
+    parsed_urls = [urlparse(url) for url in urls]
+    # reddit urls to users or subs only have path, no netloc
+    # '/u/username' or 'r/subreddit'
+    filtered_urls: List[ParseResult] = [url for url in parsed_urls if url.netloc]
+    if blacklist:
+        filtered_urls: List[ParseResult] = [
+            url for url in filtered_urls if url.netloc in blacklist
+        ]
+    if whitelist:
+        filtered_urls: List[ParseResult] = [
+            url for url in filtered_urls if url.netloc in whitelist
+        ]
+    return [parsed_url.geturl() for parsed_url in filtered_urls]
+
+
+def load_list_from_file(list_file: str) -> List[str]:
+    lst = []
+    try:
+        with open(list_file, "r") as f:
+            for line in f:
+                if line and not line.startswith("#"):
+                    lst.append(line.strip().lower())
+                else:
+                    continue
+    except Exception as e:
+        print(f"could not load {list_file}: {e} \n\n returning empty list...")
+    return lst
+
+
 if __name__ == "__main__":
     test_loading_env()
-    creds = load_credentials()
+    creds = load_settings_from_env()
+
+    LIMIT = creds.pop("LIMIT")
+
+    blacklist_file = creds.pop("blacklist_file")
+    blacklist = load_list_from_file(blacklist_file)
+    whitelist_file = creds.pop("whitelist_file")
+    whitelist = load_list_from_file(whitelist_file)
+
+    subreddits_file = creds.pop("subreddits_file")
+    subreddits_list = load_list_from_file(subreddits_file)
+    only_one_subreddit = False
+
+    if len(subreddits_list) == 1:
+        only_one_subreddit = True
+
     rdt = get_reddit_instance(creds)
-    print(authenticated(creds))
+    saved_items: List[Union[Submission, Comment]] = list()
+
+    if only_one_subreddit:
+        saved_items = get_saved_items_of_subreddit(rdt, LIMIT, *subreddits_list)
+    else:
+        for sub in subreddits_list:
+            saved_items.extend(get_saved_items_of_subreddit(rdt, LIMIT, sub))
+
+    saved_subs, saved_coms = separate_submissions_comments(items=saved_items)
+    urls = list()
+
+    urls.extend(pull_links_submissions(saved_subs))
+    urls.extend(pull_links_comments(saved_coms))
+
+    filtered_urls = filter_urls(urls, blacklist, whitelist)
+    print(filtered_urls)
