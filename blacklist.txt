@@ -1,0 +1,3 @@
+# Add a list of domain parts to exclude
+# example: the following filters out this net_location: gutenberg.org
+# bert.o

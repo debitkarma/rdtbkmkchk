@@ -1,0 +1,3 @@
+# Add a list of net_locations to filter for a whitelist
+# example: the following will allow a netlocation like: gutenberg.org
+# berg.o
