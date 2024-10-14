@@ -86,7 +86,16 @@ def separate_submissions_comments(
 
 
 def pull_links_submissions(submission_entry: Submission) -> List[str]:
+    logger.info(
+        f"pulling links from {submission_entry.id}: {submission_entry.selftext}"
+    )
     html_content = submission_entry.selftext_html
+    if not html_content:
+        logger.warning(
+            f"Submission {submission_entry.id}/{submission_entry.title} looks to be removed"
+        )
+        return []
+    logger.debug(f"{html_content = }")
     soup = BeautifulSoup(html_content, "html.parser")
     links = soup.find_all("a")
     urls = [link.get("href") for link in links]
@@ -94,7 +103,11 @@ def pull_links_submissions(submission_entry: Submission) -> List[str]:
 
 
 def pull_links_comments(comment_entry: Comment) -> List[str]:
+    logger.info(f"pulling links from {comment_entry.id}: {comment_entry.body}")
     html_content = comment_entry.body_html
+    if not html_content:
+        logger.warning(f"Comment {comment_entry.id} looks to be removed")
+        return []
     soup = BeautifulSoup(html_content, "html.parser")
     links = soup.find_all("a")
     urls = [link.get("href") for link in links]
@@ -161,15 +174,15 @@ if __name__ == "__main__":
 
     blacklist_file = creds.pop("blacklist_file")
     blacklist = load_list_from_file(blacklist_file)
-    logger.debug(f"blacklist: {blacklist}")
+    logger.debug(f"blacklist ({len(blacklist)}): {blacklist}")
 
     whitelist_file = creds.pop("whitelist_file")
     whitelist = load_list_from_file(whitelist_file)
-    logger.debug(f"whitelist: {whitelist}")
+    logger.debug(f"whitelist ({len(whitelist)}): {whitelist}")
 
     subreddits_file = creds.pop("subreddits_file")
     subreddits_list = load_list_from_file(subreddits_file)
-    logger.debug(f"subreddits_list: {subreddits_list}")
+    logger.debug(f"subreddits_list ({len(subreddits_list)}): {subreddits_list}")
 
     only_one_subreddit = False
 
@@ -187,6 +200,9 @@ if __name__ == "__main__":
             saved_items.extend(get_saved_items_of_subreddit(rdt, LIMIT, sub))
 
     saved_submissions, saved_comments = separate_submissions_comments(items=saved_items)
+    logger.info(
+        f"Counts:\nSubmittions: {len(saved_submissions)} ; Comments: {len(saved_comments)}"
+    )
     logger.debug(f"{saved_submissions = } \n\n {saved_comments = }")
 
     urls = list()
