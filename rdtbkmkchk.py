@@ -104,7 +104,17 @@ def pull_links_submissions(submission_entry: Submission) -> List[str]:
     logger.info(
         f"pulling links from {submission_entry.id}: {submission_entry.selftext}"
     )
-    html_content = submission_entry.selftext_html
+    if submission_entry.is_self:
+        html_content = submission_entry.selftext_html
+    elif submission_entry.url:
+        if "reddit" not in submission_entry.url:
+            logger.info(
+                f"Submission {submission_entry.id}/{submission_entry.title} is not a self post; url returned"
+            )
+            return list(submission_entry.url)
+        else:
+            html_content = rdt.submission(url=submission_entry.url)
+
     if not html_content:
         logger.warning(
             f"Submission {submission_entry.id}/{submission_entry.title} looks to be removed"
@@ -174,6 +184,27 @@ def load_list_from_file(list_file: str) -> List[str]:
     except Exception as e:
         logger.warning(f"could not load {list_file}: {e} \n\n returning empty list...")
     return lst
+
+
+def process_reddit_links_list(links_list: List[str], reddit_instance: Reddit):
+    submissions: List[Submission] = list()
+    comments: List[Comment] = list()
+    for link in links_list:
+        if "comments" in link:
+            comments.append(reddit_instance.comment(url=link))
+        else:
+            submission_candidate = reddit_instance.submission(url=link)
+            if submission_candidate.is_self:
+                submissions.append(submission_candidate)
+            elif "reddit" in submission_candidate.url:
+                if "comment" in submission_candidate.url:
+                    comments.append(
+                        reddit_instance.comment(url=submission_candidate.url)
+                    )
+                else:
+                    submissions.append(
+                        reddit_instance.submission(url=submission_candidate.url)
+                    )
 
 
 if __name__ == "__main__":
