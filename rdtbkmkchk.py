@@ -106,20 +106,26 @@ def pull_links_submissions(submission_entry: Submission) -> List[str]:
     )
     if submission_entry.is_self:
         html_content = submission_entry.selftext_html
-    elif submission_entry.url:
+    elif submission_entry.url:  # not self post, has a target url
         if "reddit" not in submission_entry.url:
+            # external link, need to return it as a list
             logger.info(
                 f"Submission {submission_entry.id}/{submission_entry.title} is not a self post; url returned"
             )
             return list(submission_entry.url)
-        else:
-            html_content = rdt.submission(url=submission_entry.url)
+        else:  # it's a reddit link
+            if (
+                "comment" in submission_entry.url
+            ):  # process it as a comment if it's a comment
+                return pull_links_comments(rdt.comment(url=submission_entry.url))
+            else:  # or, it's a submission, so create a submission obj from the target url, then get its html
+                html_content = rdt.submission(url=submission_entry.url).selftext_html
 
     if not html_content:
         logger.warning(
             f"Submission {submission_entry.id}/{submission_entry.title} looks to be removed"
         )
-        return []
+        return list()
     logger.debug(f"{html_content = }")
     soup = BeautifulSoup(html_content, "html.parser")
     links = soup.find_all("a")
@@ -205,6 +211,26 @@ def process_reddit_links_list(links_list: List[str], reddit_instance: Reddit):
                     submissions.append(
                         reddit_instance.submission(url=submission_candidate.url)
                     )
+
+
+def bootstrap_reddit_instance_and_lists() -> (
+    Tuple[Reddit, int, List[str], List[str], List[str]]
+):
+    """This reads the ENV vars and tries to return all of the relevant
+    stuff alongside a new praw Reddit instance. Useful for CLI debugging,
+    when using as a library, etc"""
+
+    creds = load_settings_from_env()
+    LIMIT = creds.pop("LIMIT")
+    blacklist_file = creds.pop("blacklist_file")
+    blacklist = load_list_from_file(blacklist_file)
+    whitelist_file = creds.pop("whitelist_file")
+    whitelist = load_list_from_file(whitelist_file)
+    subreddits_file = creds.pop("subreddits_file")
+    subreddits_list = load_list_from_file(subreddits_file)
+    rdt = get_reddit_instance(creds)
+
+    return (rdt, LIMIT, blacklist, whitelist, subreddits_list)
 
 
 if __name__ == "__main__":
